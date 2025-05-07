@@ -12,4 +12,5 @@ python-dotenv
 numpy
 pandas
 scikit-learn
-
+streamlit
+pydantic
