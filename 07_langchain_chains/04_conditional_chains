@@ -1,0 +1,49 @@
+
+from langchain_core.output_parsers import StrOutputParser, PydanticOutputParser
+from langchain_openai import ChatOpenAI
+from langchain_core.runnables import RunnableLambda, RunnableBranch
+from dotenv import load_dotenv
+from pydantic import BaseModel, Field
+from typing import Literal
+from langchain_core.prompts import PromptTemplate
+
+
+load_dotenv()
+
+class Feedback(BaseModel):
+    sentiment : Literal["positive", "negative"] = Field(description="The sentiment of the feedback.")
+
+parser1 = StrOutputParser()
+
+parser2 = PydanticOutputParser(pydantic_object=Feedback)
+
+
+prompt1 = PromptTemplate(
+    input_variables = ['feedback'],
+    partial_variables= {'format_instruction': parser2.get_format_instructions()},
+    template = "Classify the feedback as positive or negative. \nFeedback: {feedback} \n {format_instruction} "
+)
+
+prompt2 = PromptTemplate(
+    input_variables = ['feedback'],
+    template = 'give a proper response for the  positive feedback. \nFeedback: {feedback} \nResponse:'
+)
+
+prompt3 = PromptTemplate(
+    input_variables = ['feedback'],
+    template = 'give a proper response for the  negative feedback. \nFeedback: {feedback} \nResponse:'
+)
+
+model = ChatOpenAI()
+
+seq_chain = prompt1 | model | parser2
+
+branch_chain = RunnableBranch(
+    (lambda x: x.sentiment == 'positive', prompt2 | model | parser1),
+    (lambda x: x.sentiment == 'negative', prompt3 | model | parser1),
+    RunnableLambda(lambda x: f"Feedback is neither positive nor negative.")
+)
+
+chain = seq_chain | branch_chain
+
+print(chain.invoke({"feedback": "The product is amazing! I love it."}))
